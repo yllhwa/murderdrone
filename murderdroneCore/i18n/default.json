@@ -1,0 +1,17 @@
+{
+  "config.section": "Combat Drone Options",
+  "config.toggle-key.name": "Activation Key",
+  "config.toggle-key.tooltip": "Each local player controls their own drone through their assigned keyboard or controller.",
+  "config.active.name": "Enabled by Default",
+  "config.active.tooltip": "Used the first time a player loads this mod; their choice is saved separately afterwards.",
+  "config.rotation-speed.name": "Rotation Speed",
+  "config.rotation-speed.tooltip": "Lower values make the drone orbit faster.",
+  "config.radius.name": "Rotation Radius",
+  "config.radius.tooltip": "The radius of the drone's orbit in pixels.",
+  "config.damage.name": "Damage",
+  "config.damage.tooltip": "Set to -1 to deal 120% of the target's current health.",
+  "config.projectile-velocity.name": "Projectile Velocity",
+  "config.projectile-velocity.tooltip": "Pixels moved per game update; 0 stops the projectile and negative values reverse it.",
+  "message.activated": "Drone activated.",
+  "message.deactivated": "Drone deactivated."
+}

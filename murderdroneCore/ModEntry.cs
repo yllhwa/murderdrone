@@ -1,198 +1,196 @@
-﻿using Microsoft.Xna.Framework.Graphics;
-using murderdroneCore;
-using murderdroneCore.Integration;
+using Microsoft.Xna.Framework.Graphics;
+using MURDERDRONE.Integration;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
-using StardewValley.Locations;
 
-namespace MURDERDRONE
+namespace MURDERDRONE;
+
+/// <summary>The mod entry point.</summary>
+public sealed class ModEntry : Mod
 {
-    /// <summary>The mod entry point.</summary>
-    public class ModEntry : Mod
+    private const string EnabledModDataKey = "prism99.cambam.MURDERDRONE.redux/Enabled";
+    private const string LegacyDroneNamePrefix = "Drone_";
+
+    private ModConfig config = null!;
+
+    /// <inheritdoc />
+    public override void Entry(IModHelper helper)
     {
-        private ModConfig Config;
-        private string droneName = "";
-        private bool DroneLoaded = false;
-        private bool LoadDroneAfterSave;
-        public static IMonitor monitor;
-       
-        /*********
-        ** Public methods
-        *********/
-        /// <summary>The mod entry point, called after the mod is first loaded.</summary>
-        /// <param name="helper">Provides simplified APIs for writing mods.</param>
-        public override void Entry(IModHelper helper)
-        {
-            Config = Helper.ReadConfig<ModConfig>();
-            monitor = Monitor;
-            GMCMIntegration.Initialize(helper, ModManifest, Config);
-            QuickSaveIntegration.Initialize(helper, HandlePreSave);
+        this.config = this.ReadConfig(helper);
+        _ = new GMCMIntegration(helper, this.ModManifest, this.config, this.ApplyConfigToDrones);
 
-            if (Config.Keybind == SButton.None)
+        helper.Events.Content.AssetRequested += this.OnAssetRequested;
+        helper.Events.GameLoop.SaveLoaded += this.OnSaveLoaded;
+        helper.Events.GameLoop.DayStarted += this.OnDayStarted;
+        helper.Events.Input.ButtonsChanged += this.OnButtonsChanged;
+    }
+
+    private ModConfig ReadConfig(IModHelper helper)
+    {
+        LegacyConfig? legacy = helper.Data.ReadJsonFile<LegacyConfig>("config.json");
+        ModConfig result = helper.ReadConfig<ModConfig>();
+
+        if (legacy is not null && string.IsNullOrWhiteSpace(legacy.ToggleKey))
+        {
+            string previousBinding = legacy.Keybind != SButton.None
+                ? legacy.Keybind.ToString()
+                : !string.IsNullOrWhiteSpace(legacy.KeyboardShortcut)
+                    ? legacy.KeyboardShortcut
+                    : SButton.F7.ToString();
+
+            result.ToggleKey = StardewModdingAPI.Utilities.KeybindList.Parse(
+                $"{previousBinding}, {SButton.LeftStick}"
+            );
+            helper.WriteConfig(result);
+        }
+
+        return result;
+    }
+
+    private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
+    {
+        if (e.Name.IsEquivalentTo("Sidekick/Drone"))
+        {
+            e.LoadFromModFile<Texture2D>(
+                "Assets/drone_sprite_robot.png",
+                AssetLoadPriority.Medium
+            );
+        }
+    }
+
+    private void OnSaveLoaded(object? sender, SaveLoadedEventArgs e)
+    {
+        if (Context.IsMainPlayer)
+            this.RemoveLegacyDrones();
+
+        this.ReconcileDrone(Game1.player, this.GetEnabled(Game1.player));
+    }
+
+    private void OnDayStarted(object? sender, DayStartedEventArgs e)
+    {
+        this.ReconcileDrone(Game1.player, this.GetEnabled(Game1.player));
+    }
+
+    private void OnButtonsChanged(object? sender, ButtonsChangedEventArgs e)
+    {
+        if (!Context.IsWorldReady
+            || !Context.IsPlayerFree
+            || Game1.currentMinigame is not null
+            || !this.config.ToggleKey.JustPressed())
+        {
+            return;
+        }
+
+        Farmer player = Game1.player;
+        bool enabled = !this.GetEnabled(player);
+        this.SetEnabled(player, enabled);
+
+        if (enabled)
+            Game1.addHUDMessage(new HUDMessage(this.Helper.Translation.Get("message.activated"), 4));
+        else
+            Game1.showRedMessage(this.Helper.Translation.Get("message.deactivated"));
+    }
+
+    private bool GetEnabled(Farmer player)
+    {
+        if (player.modData.TryGetValue(EnabledModDataKey, out string? value)
+            && bool.TryParse(value, out bool enabled))
+        {
+            return enabled;
+        }
+
+        this.WriteEnabled(player, this.config.Active);
+        return this.config.Active;
+    }
+
+    private void SetEnabled(Farmer player, bool enabled)
+    {
+        this.WriteEnabled(player, enabled);
+        this.ReconcileDrone(player, enabled);
+    }
+
+    private void WriteEnabled(Farmer player, bool enabled)
+    {
+        player.modData[EnabledModDataKey] = enabled.ToString();
+    }
+
+    private void ReconcileDrone(Farmer player, bool enabled)
+    {
+        List<CombatDroneCompanion> drones = player.companions
+            .OfType<CombatDroneCompanion>()
+            .ToList();
+
+        if (!enabled)
+        {
+            foreach (CombatDroneCompanion drone in drones)
+                player.RemoveCompanion(drone);
+
+            return;
+        }
+
+        CombatDroneCompanion activeDrone;
+        if (drones.Count == 0)
+        {
+            activeDrone = new CombatDroneCompanion(this.config, this.Helper.Reflection);
+            player.AddCompanion(activeDrone);
+        }
+        else
+        {
+            activeDrone = drones[0];
+            activeDrone.ApplySettings(this.config, this.Helper.Reflection);
+        }
+
+        foreach (CombatDroneCompanion duplicate in drones.Skip(1))
+            player.RemoveCompanion(duplicate);
+    }
+
+    private void ApplyConfigToDrones()
+    {
+        if (!Context.IsWorldReady)
+            return;
+
+        foreach (Farmer farmer in Game1.getAllFarmers())
+        {
+            foreach (CombatDroneCompanion drone in farmer.companions.OfType<CombatDroneCompanion>())
+                drone.ApplySettings(this.config, this.Helper.Reflection);
+        }
+    }
+
+    private void RemoveLegacyDrones()
+    {
+        int removed = 0;
+
+        Utility.ForEachLocation(
+            location =>
             {
-                //
-                //  old config try to upgrade
-                //
-                if (Config.KeyboardShortcut == "F7")
+#pragma warning disable CS0618
+                foreach (NPC character in location.characters.ToList())
                 {
-                    Config.Keybind = SButton.F7;
+                    if (character is Drone
+                        || (character.Name.StartsWith(LegacyDroneNamePrefix, StringComparison.Ordinal)
+                            && character.modData.ContainsKey("mdrone.playerId")))
+                    {
+                        location.characters.Remove(character);
+                        removed++;
+                    }
                 }
-            }
+#pragma warning restore CS0618
+                return true;
+            },
+            includeGenerated: true
+        );
 
-            helper.Events.GameLoop.SaveCreating += GameLoop_SaveCreating;
-            helper.Events.GameLoop.Saving += GameLoop_Saving;
-            helper.Events.Input.ButtonPressed += Input_ButtonPressed;
-            helper.Events.GameLoop.SaveLoaded += GameLoop_SaveLoaded;
-            helper.Events.Player.Warped += PlayerEvents_Warped;
-            helper.Events.GameLoop.DayStarted += GameLoop_DayStarted;
-            //
-            //  added for SMAPI 4
-            //
-            helper.Events.Content.AssetRequested += OnAssetRequested;
-        }
+        if (removed > 0)
+            this.Monitor.Log($"Removed {removed} legacy NPC drone(s).", LogLevel.Info);
+    }
 
+    private sealed class LegacyConfig
+    {
+        public string? ToggleKey { get; set; }
 
+        public string? KeyboardShortcut { get; set; }
 
-        private void GameLoop_DayStarted(object? sender, DayStartedEventArgs e)
-        {
-            DroneLoaded = false;
-            LoadDroneAfterSave = LoadDroneAfterSave || Config.Active;
-            if (LoadDroneAfterSave)
-            {
-                AddDrone();
-            }
-        }
-        //
-        //  added for SMAPI 4.0.0 compatability
-        //
-        private void OnAssetRequested(object? sender, AssetRequestedEventArgs e)
-        {
-            if (e.Name.IsEquivalentTo("Sidekick/Drone") || e.Name.StartsWith("Portraits/Drone_"))
-            {
-                e.LoadFromModFile<Texture2D>("Assets/drone_sprite_robot.png", AssetLoadPriority.Medium);
-            }
-        }
-
-        /*********
-        ** Private methods
-        *********/
-        internal void HandlePreSave()
-        {
-            LoadDroneAfterSave = DroneLoaded;
-            RemoveDrone(true);
-        }
-        private void GameLoop_SaveCreating(object? sender, SaveCreatingEventArgs e)
-        {
-            HandlePreSave();
-        }
-        private void GameLoop_Saving(object? sender, SavingEventArgs e)
-        {
-            LoadDroneAfterSave = DroneLoaded;
-            RemoveDrone(true);
-        }
-
-        private void GameLoop_SaveLoaded(object? sender, SaveLoadedEventArgs e)
-        {
-            droneName = "Drone_" + Game1.player.uniqueMultiplayerID;
-            LoadDroneAfterSave = Config.Active;
-        }
-
-
-        private void Input_ButtonPressed(object? sender, ButtonPressedEventArgs e)
-        {
-            if (!Context.IsPlayerFree || Game1.currentMinigame != null)
-                return;
-
-            if (e.Button == Config.Keybind)
-            {
-
-                if (DroneLoaded)
-                {
-                    RemoveMyDrone(Game1.player.currentLocation);
-                    DroneLoaded = false;
-                    Game1.showRedMessage("Drone deactivated.");
-                }
-                else
-                {
-                    AddDrone();
-                    DroneLoaded = true;
-                    Game1.addHUDMessage(new HUDMessage("Drone activated.", 4));
-                }
-            }
-        }
-
-        /// <summary>
-        /// The method called when the player warps.
-        /// </summary>
-        /// <param name="sender">The event sender.</param>
-        /// <param name="e">The event arguments.</param>
-        private void PlayerEvents_Warped(object? sender, WarpedEventArgs e)
-        {
-            if (!LoadDroneAfterSave && (!e.IsLocalPlayer || Game1.CurrentEvent != null || !DroneLoaded))
-                return;
-
-            NPC drone = e.OldLocation.getCharacterFromName(droneName);
-            if (drone != null)
-            {
-                e.OldLocation.characters.Remove(drone);
-                //
-                //  check for indoor location
-                //
-                if (e.OldLocation is not DecoratableLocation)
-                    e.NewLocation.characters.Add(drone);
-            }
-            else
-            {
-                AddDrone();
-            }
-        }
-        private bool RemoveAllDrones(GameLocation location)
-        {
-            foreach (var character in location.characters.ToList())
-            {
-                if (character.Name.StartsWith("Drone_"))
-                {
-                    location.characters.Remove(character);
-                }
-            }
-
-            return true;
-        }
-        private bool RemoveMyDrone(GameLocation location)
-        {
-            foreach (var character in location.characters.ToList())
-            {
-                if (character.Name.Equals(droneName))
-                {
-                    location.characters.Remove(character);
-                }
-            }
-
-            return true;
-        }
-        private void RemoveDrone(bool updateLoadedStatus = true)
-        {
-            Utility.ForEachLocation(RemoveAllDrones);
-
-            if (updateLoadedStatus)
-                DroneLoaded = false;
-        }
-
-        private void AddDrone()
-        {
-            if (Game1.currentLocation == null || Game1.currentLocation is DecoratableLocation)
-                return;
-
-            if (Game1.getCharacterFromName(droneName) == null)
-            {
-                Game1.currentLocation.addCharacter(new Drone(Config.RotationSpeed, Config.Damage, Config.ProjectileVelocity, Helper, droneName, Game1.player.uniqueMultiplayerID.Value, Config.DroneRadius));
-                DroneLoaded = true;
-            }
-            else
-                Game1.warpCharacter(Game1.getCharacterFromName(droneName), Game1.currentLocation, Game1.player.Position);
-
-            LoadDroneAfterSave = false;
-        }
+        public SButton Keybind { get; set; }
     }
 }

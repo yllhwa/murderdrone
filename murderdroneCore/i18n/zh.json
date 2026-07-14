@@ -1,0 +1,17 @@
+{
+  "config.section": "战斗无人机设置",
+  "config.toggle-key.name": "启用按键",
+  "config.toggle-key.tooltip": "同屏玩家分别通过分配给自己的键盘或手柄控制自己的无人机。",
+  "config.active.name": "默认启用",
+  "config.active.tooltip": "只用于玩家第一次加载本 Mod；之后会分别保存每位玩家自己的选择。",
+  "config.rotation-speed.name": "旋转速度",
+  "config.rotation-speed.tooltip": "数值越小，无人机环绕速度越快。",
+  "config.radius.name": "旋转半径",
+  "config.radius.tooltip": "无人机环绕玩家的半径，单位为像素。",
+  "config.damage.name": "伤害",
+  "config.damage.tooltip": "设为 -1 时，每次造成目标当前生命值 120% 的伤害。",
+  "config.projectile-velocity.name": "弹丸速度",
+  "config.projectile-velocity.tooltip": "弹丸每次游戏更新移动的像素数；0 表示不移动，负数表示反向移动。",
+  "message.activated": "无人机已启用。",
+  "message.deactivated": "无人机已停用。"
+}

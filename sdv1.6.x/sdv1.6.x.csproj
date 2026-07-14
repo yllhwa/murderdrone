@@ -2,43 +2,17 @@
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
-    <RootNamespace>murderdrone</RootNamespace>
+    <RootNamespace>MURDERDRONE</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>CombatDrone</AssemblyName>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants);v16</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>$(DefineConstants);v16</DefineConstants>
+    <Version>1.4.0</Version>
   </PropertyGroup>
 
   <Import Project="..\murderdroneCore\murderdroneCore.projitems" Label="Shared" />
 
   <ItemGroup>
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.4.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="MonoGame.Framework">
-      <HintPath>T:\MonoGame.Framework.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="SMAPI.Toolkit.CoreInterfaces">
-      <HintPath>T:\smapi-internal\SMAPI.Toolkit.CoreInterfaces.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Stardew Valley">
-      <HintPath>T:\Stardew Valley.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="StardewModdingAPI">
-      <HintPath>T:\StardewModdingAPI.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
   </ItemGroup>
 
   <ItemGroup>

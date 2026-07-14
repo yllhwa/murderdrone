@@ -1,0 +1,66 @@
+name: Build and package mod
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_REF: refs/heads/master
+
+    steps:
+      - name: Fetch code
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: false
+
+      - name: Add SMAPI build environment
+        uses: Pathoschild/SMAPI-ModBuildWorkflow/add-build-environment@v1
+
+      - name: Set prerelease version
+        if: github.ref_type != 'tag' && github.ref != env.RELEASE_REF
+        uses: Pathoschild/SMAPI-ModBuildWorkflow/set-prerelease-versions@v1
+
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          [xml] $project = Get-Content "sdv1.6.x/sdv1.6.x.csproj"
+          $projectVersion = [string] $project.Project.PropertyGroup.Version
+          $tagVersion = "${{ github.ref_name }}" -replace '^v', ''
+          if ($projectVersion -ne $tagVersion) {
+              throw "Tag version '$tagVersion' doesn't match project version '$projectVersion'."
+          }
+
+      - name: Build release package
+        run: dotnet build MURDERDRONE.sln --configuration Release
+
+      - name: Upload package artifact
+        uses: Pathoschild/SMAPI-ModBuildWorkflow/upload-release-artifacts@v1
+        with:
+          create_attestations: ${{ github.ref_type == 'tag' }}
+
+      - name: Publish GitHub release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" _releases/*.zip --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" _releases/*.zip \
+              --generate-notes \
+              --title "Personal Combat Drone $GITHUB_REF_NAME"
+          fi

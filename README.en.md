@@ -23,7 +23,7 @@ dotnet build sdv1.6.x/sdv1.6.x.csproj -c Release
 ```
 
 GitHub Actions creates a downloadable test package for every push and pull
-request. Push a `v*` tag matching the project version (for example `v1.4.0`)
+request. Push a `v*` tag matching the project version (for example `v1.4.1`)
 to create a GitHub Release automatically.
 
 Test split-screen, separate locations and mine floors, save/load, armored bugs,

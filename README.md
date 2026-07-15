@@ -22,6 +22,6 @@ dotnet build sdv1.6.x/sdv1.6.x.csproj -c Release
 ```
 
 GitHub Actions 会为每次推送和拉取请求生成可下载的测试包；推送与项目版本一致的
-`v*` 标签（如 `v1.4.0`）会自动创建 GitHub Release。
+`v*` 标签（如 `v1.4.1`）会自动创建 GitHub Release。
 
 建议测试双人/多人分屏、不同地图和矿井层、保存加载、装甲虫与岩石蟹。

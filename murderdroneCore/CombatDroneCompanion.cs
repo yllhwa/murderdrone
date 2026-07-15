@@ -15,6 +15,7 @@ public sealed class CombatDroneCompanion : Companion
     private const int AttackRangeInTiles = 9;
     private const int MaxConcurrentProjectiles = 10;
     private const int MaxProjectileTravelDistance = 900;
+    private const int CursedShortsBatAge = 789;
 
     private static readonly Rectangle SourceRectangle = new(12, 0, 12, 12);
     private static readonly Vector2 SpriteOrigin = new(6f, 6f);
@@ -138,7 +139,7 @@ public sealed class CombatDroneCompanion : Companion
 
         foreach (Character character in location.characters)
         {
-            if (character is not Monster monster || monster.Health <= 0 || monster.IsInvisible)
+            if (character is not Monster monster || !IsTargetable(monster))
                 continue;
 
             float distanceSquared = Vector2.DistanceSquared(monster.Position, this.Owner.Position);
@@ -149,6 +150,21 @@ public sealed class CombatDroneCompanion : Companion
         this.targetCandidates.Sort(static (left, right) =>
             left.DistanceSquared.CompareTo(right.DistanceSquared)
         );
+    }
+
+    private static bool IsTargetable(Monster monster)
+    {
+        if (monster.Health <= 0 || monster.IsInvisible)
+            return false;
+
+        return monster switch
+        {
+            Mummy mummy when mummy.reviveTimer.Value > 0 => false,
+            Spiker => false,
+            Bat bat when bat.Age == CursedShortsBatAge => false,
+            LavaLurk lavaLurk when lavaLurk.currentState.Value == LavaLurk.State.Submerged => false,
+            _ => true
+        };
     }
 
     private bool HasProjectileFor(Monster target)
